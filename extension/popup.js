@@ -49,19 +49,19 @@ async function onToggleClick() {
       return;
     }
 
-    const response = await chrome.runtime.sendMessage({
-      type: "start-meeting-capture",
-      tabId: tab?.id,
-      backendUrl
-    });
-    if (!response?.ok) {
-      throw new Error(response?.error || "Dinleme başlatılamadı.");
-    }
+      const response = await chrome.runtime.sendMessage({
+        type: "start-meeting-capture",
+        tabId: tab?.id,
+        backendUrl
+      });
+      if (!response?.ok) {
+        throw new Error(response?.error || "Dinleme başlatılamadı.");
+      }
     isCapturing = true;
     setStatus("Dinleme aktif.", "active");
   } catch (error) {
     console.error(error);
-    setStatus("Dinleme başlatılamadı. Lütfen yeniden deneyin.", "error");
+    setStatus(error?.message || "Dinleme başlatılamadı. Lütfen yeniden deneyin.", "error");
   } finally {
     toggleButton.disabled = false;
     updateToggleText();

@@ -1,20 +1,30 @@
-const SPEAKER_SELECTOR_CANDIDATES = [
-  '[data-self-name].kBPcHd',
-  '[data-requested-participant-id] div[aria-live="polite"]',
-  '[role="listitem"][data-sorted-index] div[aria-live="assertive"]'
+const ACTIVE_SPEAKER_SELECTORS = [
+  '[aria-live="polite"] .zWGUib',
+  '[role="listitem"][data-sorted-index="0"] .zWGUib',
+  '[data-self-name]'
 ];
 
+const PARTICIPANT_LIST_SELECTOR = '[aria-label*="Katılımcılar"], [aria-label*="Participants"]';
+
 function getActiveSpeakers() {
-  const results = [];
-  SPEAKER_SELECTOR_CANDIDATES.forEach((selector) => {
-    document.querySelectorAll(selector).forEach((el) => {
-      const text = el.textContent?.trim();
-      if (text && !results.includes(text)) {
-        results.push(text);
+  const results = new Set();
+  ACTIVE_SPEAKER_SELECTORS.forEach((selector) => {
+    document.querySelectorAll(selector).forEach((node) => {
+      const text = node.textContent?.trim();
+      if (text) {
+        results.add(text);
       }
     });
   });
-  return results.slice(0, 3);
+  if (!results.size) {
+    document.querySelectorAll(`${PARTICIPANT_LIST_SELECTOR} [data-participant-id]`).forEach((node) => {
+      const text = node.textContent?.trim();
+      if (text) {
+        results.add(text);
+      }
+    });
+  }
+  return Array.from(results).slice(0, 4);
 }
 
 let lastSpeakers = [];

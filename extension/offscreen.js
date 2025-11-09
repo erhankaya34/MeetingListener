@@ -15,7 +15,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
   if (message?.type === "meeting-capture-stop") {
-    stopPipeline().then(() => sendResponse({ ok: true }));
+    stopPipeline()
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => {
+        console.error("Failed to stop pipeline", error);
+        sendResponse({ ok: false, error: error?.message || String(error) });
+      });
     return true;
   }
   if (message?.type === "meeting-speaker-snapshot") {
@@ -31,19 +36,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 async function startPipeline(streamId, backendUrl, meetingId) {
   if (mediaRecorder) return;
   currentMeetingId = meetingId ?? crypto.randomUUID();
-  let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        mandatory: {
-          chromeMediaSource: "tab",
-          chromeMediaSourceId: streamId
-        }
-      }
-    });
-  } catch (error) {
-    throw new Error("Sekme sesi alınamadı. İzin verdin mi?");
-  }
+  const stream = await captureTabAudio(streamId);
 
   backendStreamer = new BackendStreamer(backendUrl, currentMeetingId);
   try {
@@ -64,6 +57,36 @@ async function startPipeline(streamId, backendUrl, meetingId) {
   };
 
   mediaRecorder.start(1500);
+}
+
+async function captureTabAudio(streamId) {
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: {
+        mandatory: {
+          chromeMediaSource: "tab",
+          chromeMediaSourceId: streamId
+        }
+      },
+      video: false
+    });
+  } catch (error) {
+    console.warn("navigator.mediaDevices.getUserMedia failed", error);
+    return new Promise((resolve, reject) => {
+      chrome.tabCapture.capture({ audio: true, video: false }, (stream) => {
+        if (chrome.runtime.lastError || !stream) {
+          reject(
+            new Error(
+              chrome.runtime.lastError?.message ||
+                "Sekme sesi alınamadı. İzin verdiğinden emin ol."
+            )
+          );
+          return;
+        }
+        resolve(stream);
+      });
+    });
+  }
 }
 
 async function stopPipeline() {
@@ -87,8 +110,7 @@ class BackendStreamer {
 
   async connect() {
     if (!this.endpoint) {
-      console.warn("Backend URL missing, audio will be dropped.");
-      return;
+      throw new Error("Backend URL boş. Popup ayarını kontrol et.");
     }
     const url = new URL(this.endpoint);
     if (this.meetingId) {

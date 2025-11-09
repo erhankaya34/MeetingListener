@@ -79,7 +79,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return;
     }
     if (message?.type === "transcript-patch") {
-      // Broadcast transcript updates to popup/action UI.
       await chrome.runtime.sendMessage({
         type: "transcript-patch",
         payload: message.payload

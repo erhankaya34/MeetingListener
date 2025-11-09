@@ -103,7 +103,7 @@ class MeetingSession {
           temperature: 0,
           language: this.language
         });
-        const chunkStartMs = this.elapsedAudioMs;
+    const chunkStartMs = this.elapsedAudioMs;
         const maxEnd = Math.max(
           0,
           ...((transcription.segments ?? []).map((segment) => segment.end))
@@ -120,11 +120,15 @@ class MeetingSession {
             end: segment.end
           };
         });
-        await this.handleTranscriptPatch({
-          type: "append",
-          segments
-        });
-        console.log(`Transcribed ${segments.length} segments for meeting ${this.meetingId} in ${Date.now() - startedAt}ms`);
+        if (segments.length) {
+          await this.handleTranscriptPatch({
+            type: "append",
+            segments
+          });
+        }
+        console.log(
+          `Received ${combined.byteLength} bytes -> ${segments.length} segments for meeting ${this.meetingId} in ${Date.now() - startedAt}ms`
+        );
       } finally {
         await cleanup();
       }
