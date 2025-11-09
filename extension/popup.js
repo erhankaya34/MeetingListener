@@ -4,7 +4,7 @@ const toggleButton = document.getElementById("toggleCapture");
 const speakerListEl = document.getElementById("speakerList");
 const transcriptEl = document.getElementById("transcript");
 const summaryEl = document.getElementById("summary");
-const tasksEl = document.getElementById("tasks");
+const assignmentsEl = document.getElementById("assignments");
 const backendUrlInput = document.getElementById("backendUrl");
 
 let isCapturing = false;
@@ -80,15 +80,28 @@ function renderTranscript(payload) {
   }).join("\n");
   if (payload?.summary) {
     summaryEl.textContent = payload.summary.text ?? "";
-    renderTasks(payload.summary.tasks ?? []);
+    renderAssignments(payload.summary.assignments ?? []);
   }
 }
 
-function renderTasks(tasks) {
-  tasksEl.innerHTML = "";
-  tasks.forEach((task) => {
+function renderAssignments(assignments) {
+  assignmentsEl.innerHTML = "";
+  assignments.forEach((assignment) => {
     const li = document.createElement("li");
-    li.textContent = `${task.owner ?? "Görev"}: ${task.text}`;
-    tasksEl.appendChild(li);
+    const ownerEl = document.createElement("div");
+    ownerEl.className = "assignment-owner";
+    ownerEl.textContent = assignment.owner ?? "Konuşmacı";
+    li.appendChild(ownerEl);
+
+    const items = Array.isArray(assignment.items) ? assignment.items : [];
+    items.forEach((item) => {
+      const itemEl = document.createElement("div");
+      itemEl.className = "assignment-item";
+      const deadlineNote = item.deadline ? ` (${item.deadline})` : " (Süre belirtilmedi)";
+      itemEl.textContent = `${item.text}${deadlineNote}`;
+      li.appendChild(itemEl);
+    });
+
+    assignmentsEl.appendChild(li);
   });
 }

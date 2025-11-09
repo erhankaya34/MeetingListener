@@ -1,9 +1,10 @@
 let mediaRecorder;
 let backendStreamer;
+let currentMeetingId = null;
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "meeting-capture-start") {
-    startPipeline(message.streamId, message.backendUrl).then(() => {
+    startPipeline(message.streamId, message.backendUrl, message.meetingId).then(() => {
       sendResponse({ ok: true });
     }).catch((err) => {
       console.error("Failed to start pipeline", err);
@@ -15,10 +16,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     stopPipeline().then(() => sendResponse({ ok: true }));
     return true;
   }
+  if (message?.type === "meeting-speaker-snapshot") {
+    backendStreamer?.sendJson({
+      type: "speaker-snapshot",
+      payload: message.payload
+    });
+    sendResponse?.({ ok: true });
+    return false;
+  }
 });
 
-async function startPipeline(streamId, backendUrl) {
+async function startPipeline(streamId, backendUrl, meetingId) {
   if (mediaRecorder) return;
+  currentMeetingId = meetingId ?? crypto.randomUUID();
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: {
       mandatory: {
@@ -28,7 +38,7 @@ async function startPipeline(streamId, backendUrl) {
     }
   });
 
-  backendStreamer = new BackendStreamer(backendUrl);
+  backendStreamer = new BackendStreamer(backendUrl, currentMeetingId);
   await backendStreamer.connect();
 
   mediaRecorder = new MediaRecorder(stream, {
@@ -49,6 +59,7 @@ async function stopPipeline() {
   mediaRecorder.stop();
   mediaRecorder.stream.getTracks().forEach((track) => track.stop());
   mediaRecorder = undefined;
+  currentMeetingId = null;
   if (backendStreamer) {
     await backendStreamer.close();
     backendStreamer = undefined;
@@ -56,8 +67,9 @@ async function stopPipeline() {
 }
 
 class BackendStreamer {
-  constructor(endpoint) {
+  constructor(endpoint, meetingId) {
     this.endpoint = endpoint;
+    this.meetingId = meetingId;
     this.socket = null;
   }
 
@@ -66,7 +78,11 @@ class BackendStreamer {
       console.warn("Backend URL missing, audio will be dropped.");
       return;
     }
-    this.socket = new WebSocket(this.endpoint);
+    const url = new URL(this.endpoint);
+    if (this.meetingId) {
+      url.searchParams.set("meetingId", this.meetingId);
+    }
+    this.socket = new WebSocket(url.toString());
     await new Promise((resolve, reject) => {
       this.socket.addEventListener("open", resolve, { once: true });
       this.socket.addEventListener("error", reject, { once: true });
@@ -84,5 +100,10 @@ class BackendStreamer {
   async close() {
     if (!this.socket) return;
     this.socket.close();
+  }
+
+  sendJson(data) {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify(data));
   }
 }

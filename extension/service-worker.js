@@ -1,11 +1,10 @@
 const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
 const OFFSCREEN_REASON = "AUDIO_CAPTURE";
-const STREAM_TOPIC = "meeting-stream";
-
 let captureState = {
   tabId: null,
   streamId: null,
-  backendUrl: null
+  backendUrl: null,
+  meetingId: null
 };
 
 async function ensureOffscreenDocument() {
@@ -25,22 +24,27 @@ async function startCapture(tabId, backendUrl) {
     return captureState;
   }
   await ensureOffscreenDocument();
+  const meetingId = crypto.randomUUID();
   const tabStreamId = await chrome.tabCapture.getMediaStreamId({
     targetTabId: tabId
   });
-  captureState = { tabId, streamId: tabStreamId, backendUrl };
+  captureState = { tabId, streamId: tabStreamId, backendUrl, meetingId };
   await chrome.runtime.sendMessage({
     type: "meeting-capture-start",
     streamId: tabStreamId,
-    backendUrl
+    backendUrl,
+    meetingId
   });
   return captureState;
 }
 
 async function stopCapture() {
   if (!captureState.streamId) return;
-  await chrome.runtime.sendMessage({ type: "meeting-capture-stop" });
-  captureState = { tabId: null, streamId: null, backendUrl: null };
+  await chrome.runtime.sendMessage({
+    type: "meeting-capture-stop",
+    meetingId: captureState.meetingId
+  });
+  captureState = { tabId: null, streamId: null, backendUrl: null, meetingId: null };
   if (chrome.offscreen?.hasDocument) {
     const exists = await chrome.offscreen.hasDocument();
     if (exists) {
@@ -72,10 +76,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return;
     }
     if (message?.type === "speaker-update") {
+      const snapshot = {
+        ...message.payload,
+        meetingId: captureState.meetingId ?? null
+      };
       await chrome.runtime.sendMessage({
         type: "speaker-update",
         payload: message.payload
       });
+      if (captureState.meetingId) {
+        await chrome.runtime.sendMessage({
+          type: "meeting-speaker-snapshot",
+          payload: snapshot
+        });
+      }
       sendResponse({ ok: true });
       return;
     }

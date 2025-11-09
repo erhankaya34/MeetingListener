@@ -29,10 +29,17 @@ const SUMMARY_INTERVAL_MS = Number(process.env.SUMMARY_INTERVAL_MS ?? 60000);
 const WHISPER_MODEL = process.env.WHISPER_MODEL || "whisper-1";
 
 wss.on("connection", async (socket, request) => {
-  const params = new URLSearchParams(request.url.replace("/stream?", ""));
-  const meetingId = params.get("meetingId") || crypto.randomUUID();
+  const url = new URL(request.url, "http://localhost");
+  const meetingId = url.searchParams.get("meetingId") || crypto.randomUUID();
   const session = new MeetingSession({ socket, meetingId, openai });
-  socket.on("message", (data) => session.pushAudio(data));
+  socket.on("message", (data, isBinary) => {
+    if (!isBinary) {
+      const text = typeof data === "string" ? data : data.toString("utf8");
+      session.handleControlMessage(text);
+      return;
+    }
+    session.pushAudio(data);
+  });
   socket.on("close", () => {
     session.close().catch((err) => {
       console.error("Failed to cleanly close meeting session", err);
@@ -57,9 +64,15 @@ class MeetingSession {
     this.lastFlushAt = Date.now();
     this.transcribing = false;
     this.lastSummaryAt = 0;
+    this.captureStartTimestamp = null;
+    this.elapsedAudioMs = 0;
+    this.speakerSnapshots = [];
   }
 
   async pushAudio(chunk) {
+    if (!this.captureStartTimestamp) {
+      this.captureStartTimestamp = Date.now();
+    }
     const buffer = chunk instanceof Buffer ? chunk : Buffer.from(chunk);
     this.audioChunks.push(buffer);
     const shouldFlush = Date.now() - this.lastFlushAt >= TRANSCRIBE_INTERVAL_MS;
@@ -90,12 +103,23 @@ class MeetingSession {
           temperature: 0,
           language: this.language
         });
-        const segments = (transcription.segments ?? []).map((segment) => ({
-          speaker: null,
-          text: segment.text.trim(),
-          start: segment.start,
-          end: segment.end
-        }));
+        const chunkStartMs = this.elapsedAudioMs;
+        const maxEnd = Math.max(
+          0,
+          ...((transcription.segments ?? []).map((segment) => segment.end))
+        );
+        const chunkDurationMs = Math.max(TRANSCRIBE_INTERVAL_MS, maxEnd * 1000);
+        this.elapsedAudioMs += chunkDurationMs;
+        const wallClockChunkStart = (this.captureStartTimestamp ?? Date.now()) + chunkStartMs;
+        const segments = (transcription.segments ?? []).map((segment) => {
+          const absoluteTimestamp = wallClockChunkStart + segment.start * 1000;
+          return {
+            speaker: this.resolveSpeakerForTimestamp(absoluteTimestamp),
+            text: segment.text.trim(),
+            start: segment.start,
+            end: segment.end
+          };
+        });
         await this.handleTranscriptPatch({
           type: "append",
           segments
@@ -123,7 +147,7 @@ class MeetingSession {
       if (summary) {
         payload.summary = {
           text: summary.summary ?? "",
-          tasks: summary.tasks ?? []
+          assignments: summary.assignments ?? []
         };
         this.lastSummaryAt = Date.now();
       }
@@ -131,14 +155,51 @@ class MeetingSession {
     this.broadcast({ type: "transcript-patch", payload });
   }
 
+  handleControlMessage(rawMessage) {
+    try {
+      const message = typeof rawMessage === "string" ? JSON.parse(rawMessage) : rawMessage;
+      if (!message) return;
+      if (message.type === "speaker-snapshot") {
+        this.recordSpeakerSnapshot(message.payload);
+      }
+    } catch (error) {
+      console.error("Failed to handle control message", error);
+    }
+  }
+
+  recordSpeakerSnapshot(snapshot) {
+    if (!snapshot) return;
+    const entry = {
+      timestamp: snapshot.timestamp ?? Date.now(),
+      speakers: Array.isArray(snapshot.speakers) ? snapshot.speakers : []
+    };
+    this.speakerSnapshots.push(entry);
+    const maxSnapshots = 500;
+    if (this.speakerSnapshots.length > maxSnapshots) {
+      this.speakerSnapshots.splice(0, this.speakerSnapshots.length - maxSnapshots);
+    }
+  }
+
+  resolveSpeakerForTimestamp(timestamp) {
+    if (!timestamp || !this.speakerSnapshots.length) return null;
+    const snapshot = [...this.speakerSnapshots].reverse().find((entry) => entry.timestamp <= timestamp);
+    return snapshot?.speakers?.[0] ?? null;
+  }
+
   async generateSummary() {
     if (!this.bufferedSegments.length) return this.lastSummary;
     const prompt = [
-      "Aşağıdaki transcript bloklarına göre toplantı özetini ve aksiyon maddelerini çıkar.",
-      "JSON döndür:",
-      "{ \"summary\": \"...\", \"tasks\": [{\"owner\": \"\", \"text\": \"\"}] }",
+      "Aşağıdaki transcript blokları bir toplantının ham metnidir.",
+      "Görevleri sahiplerine göre grupla ve kısa bir özet çıkar.",
+      "Kurallar:",
+      "- Cevabı JSON olarak ver.",
+      "- Şema: {\"summary\":\"...\",\"assignments\":[{\"owner\":\"Ad Soyad\",\"items\":[{\"text\":\"Görev açıklaması\",\"deadline\":\"Belirtilmedi\"}]}]}",
+      "- Eğer görev için tarih/süre belirtilmemişse deadline alanına \"Süre belirtilmedi\" yaz.",
+      "- Aynı kişi için birden fazla görev varsa tek \"items\" listesinde hepsini sırala.",
+      "- Konuşmacı fikir değiştirip görevi geri aldıysa sadece son geçerli kararı yaz.",
+      "- Transcript Türkçe olduğundan tüm çıktı Türkçe olsun.",
       "",
-      this.bufferedSegments.map((segment) => `${segment.speaker ?? "?"}: ${segment.text}`).join("\n")
+      this.bufferedSegments.map((segment) => `${segment.speaker ?? "Belirsiz"}: ${segment.text}`).join("\n")
     ].join("\n");
 
     try {

@@ -38,11 +38,6 @@ ul {
   white-space: pre-wrap;
 }
 
-#summary {
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
 input[type="url"] {
   width: 100%;
   border-radius: 4px;
@@ -65,4 +60,22 @@ button {
 button[disabled] {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+#summary {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+#assignments > li {
+  margin-bottom: 6px;
+}
+
+.assignment-owner {
+  font-weight: 600;
+}
+
+.assignment-item {
+  font-size: 0.85rem;
+  margin-left: 12px;
 }

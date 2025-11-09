@@ -28,9 +28,9 @@ server/          # Node.js tabanlı backend iskeleti
 
 ### Chrome Eklentisi
 - `service-worker.js`: tab audio capture başlatma/durdurma, offscreen document yönetimi, popup’a olay yayımı.
-- `offscreen.js`: `MediaRecorder` ile sesi `WebSocket` üzerinden backend’e gönderir.
-- `meet-observer.js`: Google Meet DOM’u üzerinden aktif konuşmacıları saptayıp servis worker’a iletir.
-- `popup.*`: Kullanıcı backend URL’si girip capture’ı yönetir, transcript/özet/görev listesini gösterir.
+- `offscreen.js`: `MediaRecorder` ile sesi `WebSocket` üzerinden backend’e gönderir; speaker snapshot’larını da JSON mesaj olarak backend’e taşır.
+- `meet-observer.js`: Google Meet DOM’u üzerinden aktif konuşmacıları saptayıp servis worker’a iletir; speaker snapshot’ları backend’e aktarılır.
+- `popup.*`: Kullanıcı backend URL’si girip capture’ı yönetir, transcript/özet ve kişi bazlı görev dağılımını gösterir (deadline yoksa “Süre belirtilmedi” ibaresi düşer).
 
 Geliştirme sırasında Chrome’da **Developer Mode → Load unpacked** diyerek `extension/` klasörünü seçmek yeterli.
 
@@ -38,6 +38,9 @@ Geliştirme sırasında Chrome’da **Developer Mode → Load unpacked** diyerek
 - `server/src/index.js`: Express + WebSocket sunucusu ile audio chunk’larını alır, OpenAI Realtime/LLM entegrasyonu için kancalar içerir.
 - `.env.example`: Gerekli environment değişkenleri.
 - Varsayılan port `8787`; sunucuyu ayağa aldıktan sonra eklentideki backend alanı otomatik olarak `wss://localhost:8787/stream` ile doldurulur. Farklı port kullanırsan hem `.env` hem de eklenti ayarını güncelle.
-- `WHISPER_MODEL`, `WHISPER_LANGUAGE`, `TRANSCRIBE_INTERVAL_MS`, `SUMMARY_INTERVAL_MS` gibi ayarlar ile bulut Whisper çağrısı yapılandırılır. ffmpeg binary’sinin sistem PATH’inde olması gerekir (Chrome eklentisinden gelen `audio/webm` chunk’ları WAV’a dönüştürmek için).
+- `WHISPER_MODEL`, `WHISPER_LANGUAGE`, `TRANSCRIBE_INTERVAL_MS`, `SUMMARY_INTERVAL_MS` gibi ayarlar ile bulut Whisper çağrısı yapılandırılır. ffmpeg binary’sinin sistem PATH’inde olması gerekir (Chrome eklentisinden gelen `audio/webm` chunk’ları WAV’a dönüştürmek için). macOS’ta `brew install ffmpeg`, Ubuntu’da `sudo apt install ffmpeg` yeterlidir.
+- Backend gelen WebSocket mesajlarını iki tipe ayırır:
+  - Binary audio chunk’ları ffmpeg ile WAV’a çevrilip Whisper API’ye gönderilir.
+  - JSON `speaker-snapshot` mesajları aktif konuşmacı listesini ve zaman damgasını içerir; transcript segmentleri bu snapshot’larla eşleştirilerek görevlendirme LLM’ine bağlam sağlar.
 
-> Not: Bulut Whisper entegrasyonu tamamlandı ancak konuşmacı eşlemesi (diarization) hâlâ placeholder durumda; Meet DOM’undan gelen aktif konuşmacı verisini backend’e taşıyıp segmentlerle eşlemek sonraki adım olmalı.
+> Not: Konuşmacı snapshot’ları DOM’dan alınıp backend’e iletilir; Whisper segmentleri bu snapshot’larla eşleştirilir. Daha hassas diarization için ileride chunk zamanlamasını iyileştirmek veya harici diarization modelleri eklemek gerekebilir.
