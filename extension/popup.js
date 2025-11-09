@@ -1,4 +1,4 @@
-const DEFAULT_BACKEND_URL = "wss://localhost:8787/stream";
+const DEFAULT_BACKEND_URL = "ws://localhost:8787/stream";
 
 const toggleButton = document.getElementById("toggleCapture");
 const speakerListEl = document.getElementById("speakerList");
@@ -32,7 +32,10 @@ async function onToggleClick() {
   toggleButton.disabled = true;
   try {
     if (isCapturing) {
-      await chrome.runtime.sendMessage({ type: "stop-meeting-capture" });
+      const response = await chrome.runtime.sendMessage({ type: "stop-meeting-capture" });
+      if (!response?.ok) {
+        throw new Error(response?.error || "Dinleme durdurulamadı.");
+      }
       isCapturing = false;
       setStatus("Dinleme durduruldu.", "idle");
     } else {
@@ -41,16 +44,14 @@ async function onToggleClick() {
         setStatus("Şu an aktif bir Google Meet sekmesi bulunamadı.", "error");
         return;
       }
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!isMeetTab(tab)) {
-        setStatus("Şu an aktif bir Google Meet sekmesi bulunamadı.", "error");
-        return;
-      }
-      await chrome.runtime.sendMessage({
+      const response = await chrome.runtime.sendMessage({
         type: "start-meeting-capture",
         tabId: tab?.id,
         backendUrl
       });
+      if (!response?.ok) {
+        throw new Error(response?.error || "Dinleme başlatılamadı.");
+      }
       isCapturing = true;
       setStatus("Dinleme aktif.", "active");
     }

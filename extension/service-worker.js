@@ -25,9 +25,7 @@ async function startCapture(tabId, backendUrl) {
   }
   await ensureOffscreenDocument();
   const meetingId = crypto.randomUUID();
-  const tabStreamId = await chrome.tabCapture.getMediaStreamId({
-    targetTabId: tabId
-  });
+  const tabStreamId = await getStreamIdForTab(tabId);
   captureState = { tabId, streamId: tabStreamId, backendUrl, meetingId };
   await chrome.runtime.sendMessage({
     type: "meeting-capture-start",
@@ -56,14 +54,24 @@ async function stopCapture() {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     if (message?.type === "start-meeting-capture") {
-      const tabId = message.tabId ?? sender.tab?.id;
-      const state = await startCapture(tabId, message.backendUrl);
-      sendResponse({ ok: true, state });
+      try {
+        const tabId = message.tabId ?? sender.tab?.id;
+        const state = await startCapture(tabId, message.backendUrl);
+        sendResponse({ ok: true, state });
+      } catch (error) {
+        console.error("Start capture failed", error);
+        sendResponse({ ok: false, error: error?.message });
+      }
       return;
     }
     if (message?.type === "stop-meeting-capture") {
-      await stopCapture();
-      sendResponse({ ok: true });
+      try {
+        await stopCapture();
+        sendResponse({ ok: true });
+      } catch (error) {
+        console.error("Stop capture failed", error);
+        sendResponse({ ok: false, error: error?.message });
+      }
       return;
     }
     if (message?.type === "transcript-patch") {
@@ -105,3 +113,18 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
   await startCapture(tab.id, null);
 });
+async function getStreamIdForTab(tabId) {
+  return new Promise((resolve, reject) => {
+    chrome.tabCapture.getMediaStreamId({ tabId }, (streamId) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!streamId) {
+        reject(new Error("Stream ID alınamadı."));
+        return;
+      }
+      resolve(streamId);
+    });
+  });
+}
