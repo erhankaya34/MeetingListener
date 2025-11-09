@@ -5,22 +5,17 @@ const speakerListEl = document.getElementById("speakerList");
 const transcriptEl = document.getElementById("transcript");
 const summaryEl = document.getElementById("summary");
 const assignmentsEl = document.getElementById("assignments");
-const backendUrlInput = document.getElementById("backendUrl");
+const statusEl = document.getElementById("status");
 
 let isCapturing = false;
 let transcriptBuffer = [];
+let backendUrl = DEFAULT_BACKEND_URL;
 
 init();
 
 async function init() {
-  const { backendUrl } = await chrome.storage.local.get("backendUrl");
-  backendUrlInput.value = backendUrl || DEFAULT_BACKEND_URL;
-  if (!backendUrl) {
-    await chrome.storage.local.set({ backendUrl: DEFAULT_BACKEND_URL });
-  }
-  backendUrlInput.addEventListener("input", async (event) => {
-    await chrome.storage.local.set({ backendUrl: event.target.value });
-  });
+  const { backendUrl: storedUrl } = await chrome.storage.local.get("backendUrl");
+  backendUrl = storedUrl || DEFAULT_BACKEND_URL;
   toggleButton.addEventListener("click", onToggleClick);
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "transcript-patch") {
@@ -30,6 +25,7 @@ async function init() {
       renderSpeakers(message.payload?.speakers ?? []);
     }
   });
+  setStatus("Hazır.", "idle");
 }
 
 async function onToggleClick() {
@@ -38,29 +34,58 @@ async function onToggleClick() {
     if (isCapturing) {
       await chrome.runtime.sendMessage({ type: "stop-meeting-capture" });
       isCapturing = false;
+      setStatus("Dinleme durduruldu.", "idle");
     } else {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!isMeetTab(tab)) {
+        setStatus("Şu an aktif bir Google Meet sekmesi bulunamadı.", "error");
+        return;
+      }
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!isMeetTab(tab)) {
+        setStatus("Şu an aktif bir Google Meet sekmesi bulunamadı.", "error");
+        return;
+      }
       await chrome.runtime.sendMessage({
         type: "start-meeting-capture",
         tabId: tab?.id,
-        backendUrl: backendUrlInput.value?.trim() || DEFAULT_BACKEND_URL
+        backendUrl
       });
       isCapturing = true;
+      setStatus("Dinleme aktif.", "active");
     }
-    updateToggleText();
   } catch (error) {
     console.error(error);
+    setStatus("Dinleme başlatılamadı. Lütfen yeniden deneyin.", "error");
   } finally {
     toggleButton.disabled = false;
+    updateToggleText();
+  }
+}
+
+function isMeetTab(tab) {
+  if (!tab?.url) return false;
+  try {
+    const url = new URL(tab.url);
+    return url.hostname === "meet.google.com";
+  } catch (error) {
+    return false;
   }
 }
 
 function updateToggleText() {
-  toggleButton.textContent = isCapturing ? "Stop Capture" : "Start Capture";
+  toggleButton.textContent = isCapturing ? "Dinlemeyi Durdur" : "Dinlemeyi Başlat";
 }
 
 function renderSpeakers(speakers) {
   speakerListEl.innerHTML = "";
+  if (!speakers.length) {
+    const placeholder = document.createElement("li");
+    placeholder.className = "muted";
+    placeholder.textContent = "Henüz konuşmacı yok.";
+    speakerListEl.appendChild(placeholder);
+    return;
+  }
   speakers.forEach((speaker) => {
     const li = document.createElement("li");
     li.textContent = speaker;
@@ -74,10 +99,16 @@ function renderTranscript(payload) {
   } else if (payload?.type === "replace") {
     transcriptBuffer = payload.segments;
   }
-  transcriptEl.textContent = transcriptBuffer.map((segment) => {
-    const { speaker, text } = segment;
-    return speaker ? `${speaker}: ${text}` : text;
-  }).join("\n");
+
+  if (!transcriptBuffer.length) {
+    transcriptEl.textContent = "Henüz transcript alınmadı.";
+  } else {
+    transcriptEl.textContent = transcriptBuffer.map((segment) => {
+      const { speaker, text } = segment;
+      return speaker ? `${speaker}: ${text}` : text;
+    }).join("\n");
+  }
+
   if (payload?.summary) {
     summaryEl.textContent = payload.summary.text ?? "";
     renderAssignments(payload.summary.assignments ?? []);
@@ -86,6 +117,14 @@ function renderTranscript(payload) {
 
 function renderAssignments(assignments) {
   assignmentsEl.innerHTML = "";
+  if (!assignments.length) {
+    const placeholder = document.createElement("li");
+    placeholder.className = "muted";
+    placeholder.textContent = "Henüz görev ataması bulunmuyor.";
+    assignmentsEl.appendChild(placeholder);
+    return;
+  }
+
   assignments.forEach((assignment) => {
     const li = document.createElement("li");
     const ownerEl = document.createElement("div");
@@ -104,4 +143,9 @@ function renderAssignments(assignments) {
 
     assignmentsEl.appendChild(li);
   });
+}
+
+function setStatus(text, tone = "idle") {
+  statusEl.textContent = text;
+  statusEl.dataset.tone = tone;
 }

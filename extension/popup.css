@@ -1,81 +1,177 @@
+:root {
+  color-scheme: dark;
+  font-family: "Inter", "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   margin: 0;
-  padding: 12px;
-  width: 320px;
-  background: #0c0d10;
-  color: #e6e8ef;
+  padding: 16px;
+  width: 360px;
+  min-height: 480px;
+  background: radial-gradient(circle at top, #1f2a44, #0b1222 70%);
+  color: #f4f6ff;
+}
+
+.app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.62rem;
+  margin: 0;
+  opacity: 0.7;
 }
 
 h1 {
-  font-size: 1.1rem;
-  margin: 0;
-}
-
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-section {
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-#transcript {
-  max-height: 120px;
-  overflow-y: auto;
-  font-size: 0.85rem;
-  white-space: pre-wrap;
-}
-
-input[type="url"] {
-  width: 100%;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 6px;
-  background: transparent;
-  color: inherit;
-  box-sizing: border-box;
+  margin: 2px 0 0;
+  font-size: 1.2rem;
 }
 
 button {
   border: none;
-  border-radius: 4px;
-  padding: 6px 10px;
-  background: #5865f2;
-  color: white;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #7f5dff, #5dd0ff);
+  color: #0b1222;
   cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 10px 25px rgba(93, 208, 255, 0.2);
+}
+
+button:hover:not([disabled]) {
+  transform: translateY(-1px);
 }
 
 button[disabled] {
-  opacity: 0.6;
+  opacity: 0.4;
   cursor: not-allowed;
+  box-shadow: none;
+}
+
+.status-chip {
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.status-chip::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8f97ff;
+}
+
+.status-chip[data-tone="error"] {
+  background: rgba(255, 106, 106, 0.15);
+}
+
+.status-chip[data-tone="error"]::before {
+  background: #ff6a6a;
+}
+
+.status-chip[data-tone="active"] {
+  background: rgba(93, 208, 255, 0.18);
+}
+
+.status-chip[data-tone="active"]::before {
+  background: #5dd0ff;
+}
+
+.card {
+  backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.section-hint {
+  font-size: 0.7rem;
+  opacity: 0.6;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill-list li {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+#transcript {
+  max-height: 160px;
+  overflow-y: auto;
+  font-size: 0.83rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: rgba(244, 246, 255, 0.92);
 }
 
 #summary {
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 #assignments > li {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#assignments > li:last-child {
+  border-bottom: none;
 }
 
 .assignment-owner {
   font-weight: 600;
+  margin-bottom: 4px;
 }
 
 .assignment-item {
-  font-size: 0.85rem;
-  margin-left: 12px;
+  font-size: 0.8rem;
+  margin-left: 10px;
+  opacity: 0.85;
+}
+
+.muted {
+  opacity: 0.6;
+  font-size: 0.78rem;
 }

@@ -1,5 +1,5 @@
 const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
-const OFFSCREEN_REASON = "AUDIO_CAPTURE";
+const OFFSCREEN_REASON = "USER_MEDIA";
 let captureState = {
   tabId: null,
   streamId: null,

@@ -6,27 +6,41 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <header>
-      <h1>Meeting Listener</h1>
-      <button id="toggleCapture">Start Capture</button>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">MeetingListener</p>
+        <h1>Toplantı Asistanı</h1>
+      </div>
+      <button id="toggleCapture">Dinlemeyi Başlat</button>
     </header>
-    <section>
-      <h2>Active Speakers</h2>
-      <ul id="speakerList"></ul>
+
+    <div id="status" class="status-chip" data-tone="idle">Hazır</div>
+
+    <section class="card">
+      <div class="section-heading">
+        <h2>Konuşmacılar</h2>
+        <span class="section-hint">Canlı olarak güncellenir</span>
+      </div>
+      <ul id="speakerList" class="pill-list"></ul>
     </section>
-    <section>
-      <h2>Transcript</h2>
+
+    <section class="card">
+      <div class="section-heading">
+        <h2>Transcript</h2>
+        <span class="section-hint">Metin otomatik kaydırılır</span>
+      </div>
       <div id="transcript"></div>
     </section>
-    <section>
-      <h2>Summary & Tasks</h2>
+
+    <section class="card">
+      <div class="section-heading">
+        <h2>Görev Atamaları</h2>
+        <span class="section-hint">Son karara göre listelenir</span>
+      </div>
       <div id="summary"></div>
       <ul id="assignments"></ul>
     </section>
-    <label>
-      Backend URL
-      <input id="backendUrl" type="url" placeholder="wss://example.com/stream" />
-    </label>
+
     <script type="module" src="popup.js"></script>
   </body>
 </html>
