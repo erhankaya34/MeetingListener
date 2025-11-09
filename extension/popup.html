@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Meeting Listener</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Meeting Listener</h1>
+      <button id="toggleCapture">Start Capture</button>
+    </header>
+    <section>
+      <h2>Active Speakers</h2>
+      <ul id="speakerList"></ul>
+    </section>
+    <section>
+      <h2>Transcript</h2>
+      <div id="transcript"></div>
+    </section>
+    <section>
+      <h2>Summary & Tasks</h2>
+      <div id="summary"></div>
+      <ul id="tasks"></ul>
+    </section>
+    <label>
+      Backend URL
+      <input id="backendUrl" type="url" placeholder="wss://example.com/stream" />
+    </label>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
