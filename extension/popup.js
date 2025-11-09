@@ -15,7 +15,8 @@ init();
 
 async function init() {
   const { backendUrl: storedUrl } = await chrome.storage.local.get("backendUrl");
-  backendUrl = storedUrl || DEFAULT_BACKEND_URL;
+  backendUrl = normalizeBackendUrl(storedUrl);
+  await chrome.storage.local.set({ backendUrl });
   await syncCaptureState();
   toggleButton.addEventListener("click", onToggleClick);
   chrome.runtime.onMessage.addListener((message) => {
@@ -169,4 +170,16 @@ function renderAssignments(assignments) {
 function setStatus(text, tone = "idle") {
   statusEl.textContent = text;
   statusEl.dataset.tone = tone;
+}
+function normalizeBackendUrl(url) {
+  if (!url) return DEFAULT_BACKEND_URL;
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "localhost" && parsed.protocol === "wss:") {
+      parsed.protocol = "ws:";
+    }
+    return parsed.toString();
+  } catch (_e) {
+    return DEFAULT_BACKEND_URL;
+  }
 }

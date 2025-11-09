@@ -4,12 +4,14 @@ let currentMeetingId = null;
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "meeting-capture-start") {
-    startPipeline(message.streamId, message.backendUrl, message.meetingId).then(() => {
-      sendResponse({ ok: true });
-    }).catch((err) => {
-      console.error("Failed to start pipeline", err);
-      sendResponse({ ok: false, error: err?.message });
-    });
+    startPipeline(message.streamId, message.backendUrl, message.meetingId)
+      .then(() => {
+        sendResponse({ ok: true });
+      })
+      .catch((err) => {
+        console.error("Failed to start pipeline", err);
+        sendResponse({ ok: false, error: err?.message || String(err) });
+      });
     return true;
   }
   if (message?.type === "meeting-capture-stop") {
@@ -29,17 +31,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 async function startPipeline(streamId, backendUrl, meetingId) {
   if (mediaRecorder) return;
   currentMeetingId = meetingId ?? crypto.randomUUID();
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      mandatory: {
-        chromeMediaSource: "tab",
-        chromeMediaSourceId: streamId
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        mandatory: {
+          chromeMediaSource: "tab",
+          chromeMediaSourceId: streamId
+        }
       }
-    }
-  });
+    });
+  } catch (error) {
+    throw new Error("Sekme sesi alınamadı. İzin verdin mi?");
+  }
 
   backendStreamer = new BackendStreamer(backendUrl, currentMeetingId);
-  await backendStreamer.connect();
+  try {
+    await backendStreamer.connect();
+  } catch (error) {
+    stream.getTracks().forEach((track) => track.stop());
+    throw error;
+  }
 
   mediaRecorder = new MediaRecorder(stream, {
     mimeType: "audio/webm;codecs=opus",
@@ -82,10 +94,23 @@ class BackendStreamer {
     if (this.meetingId) {
       url.searchParams.set("meetingId", this.meetingId);
     }
-    this.socket = new WebSocket(url.toString());
     await new Promise((resolve, reject) => {
-      this.socket.addEventListener("open", resolve, { once: true });
-      this.socket.addEventListener("error", reject, { once: true });
+      const socket = new WebSocket(url.toString());
+      this.socket = socket;
+      const cleanup = () => {
+        socket.removeEventListener("open", handleOpen);
+        socket.removeEventListener("error", handleError);
+      };
+      const handleOpen = () => {
+        cleanup();
+        resolve();
+      };
+      const handleError = () => {
+        cleanup();
+        reject(new Error("Backend'e bağlanılamadı. Sunucu çalışıyor mu?"));
+      };
+      socket.addEventListener("open", handleOpen, { once: true });
+      socket.addEventListener("error", handleError, { once: true });
     });
   }
 
@@ -100,6 +125,7 @@ class BackendStreamer {
   async close() {
     if (!this.socket) return;
     this.socket.close();
+    this.socket = null;
   }
 
   sendJson(data) {
