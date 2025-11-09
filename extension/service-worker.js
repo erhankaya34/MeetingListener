@@ -74,6 +74,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       return;
     }
+    if (message?.type === "get-capture-state") {
+      sendResponse({ ok: true, state: captureState });
+      return;
+    }
     if (message?.type === "transcript-patch") {
       // Broadcast transcript updates to popup/action UI.
       await chrome.runtime.sendMessage({
@@ -115,16 +119,22 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 async function getStreamIdForTab(tabId) {
   return new Promise((resolve, reject) => {
-    chrome.tabCapture.getMediaStreamId({ tabId }, (streamId) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
+    chrome.tabCapture.getMediaStreamId(
+      {
+        targetTabId: tabId,
+        consumerTabId: tabId
+      },
+      (streamId) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (!streamId) {
+          reject(new Error("Stream ID alınamadı."));
+          return;
+        }
+        resolve(streamId);
       }
-      if (!streamId) {
-        reject(new Error("Stream ID alınamadı."));
-        return;
-      }
-      resolve(streamId);
-    });
+    );
   });
 }

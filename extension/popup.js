@@ -16,6 +16,7 @@ init();
 async function init() {
   const { backendUrl: storedUrl } = await chrome.storage.local.get("backendUrl");
   backendUrl = storedUrl || DEFAULT_BACKEND_URL;
+  await syncCaptureState();
   toggleButton.addEventListener("click", onToggleClick);
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "transcript-patch") {
@@ -38,29 +39,48 @@ async function onToggleClick() {
       }
       isCapturing = false;
       setStatus("Dinleme durduruldu.", "idle");
-    } else {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!isMeetTab(tab)) {
-        setStatus("Şu an aktif bir Google Meet sekmesi bulunamadı.", "error");
-        return;
-      }
-      const response = await chrome.runtime.sendMessage({
-        type: "start-meeting-capture",
-        tabId: tab?.id,
-        backendUrl
-      });
-      if (!response?.ok) {
-        throw new Error(response?.error || "Dinleme başlatılamadı.");
-      }
-      isCapturing = true;
-      setStatus("Dinleme aktif.", "active");
+      return;
     }
+
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!isMeetTab(tab)) {
+      setStatus("Şu an aktif bir Google Meet sekmesi bulunamadı.", "error");
+      return;
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      type: "start-meeting-capture",
+      tabId: tab?.id,
+      backendUrl
+    });
+    if (!response?.ok) {
+      throw new Error(response?.error || "Dinleme başlatılamadı.");
+    }
+    isCapturing = true;
+    setStatus("Dinleme aktif.", "active");
   } catch (error) {
     console.error(error);
     setStatus("Dinleme başlatılamadı. Lütfen yeniden deneyin.", "error");
   } finally {
     toggleButton.disabled = false;
     updateToggleText();
+  }
+}
+
+async function syncCaptureState() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "get-capture-state" });
+    if (response?.ok && response.state?.streamId) {
+      isCapturing = true;
+      setStatus("Dinleme aktif.", "active");
+    } else {
+      isCapturing = false;
+      setStatus("Hazır.", "idle");
+    }
+    updateToggleText();
+  } catch (error) {
+    console.error("Capture state alınamadı", error);
+    setStatus("Durum okunamadı.", "error");
   }
 }
 
