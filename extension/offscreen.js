@@ -36,7 +36,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 async function startPipeline(streamId, backendUrl, meetingId) {
   if (mediaRecorder) return;
   currentMeetingId = meetingId ?? crypto.randomUUID();
-  const stream = await captureTabAudio(streamId);
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        mandatory: {
+          chromeMediaSource: "tab",
+          chromeMediaSourceId: streamId
+        }
+      },
+      video: false
+    });
+  } catch (error) {
+    throw new Error(
+      error?.message || error?.name || "Sekme sesi alınamadı. Lütfen yeniden izin ver."
+    );
+  }
 
   backendStreamer = new BackendStreamer(backendUrl, currentMeetingId);
   try {
@@ -57,36 +72,6 @@ async function startPipeline(streamId, backendUrl, meetingId) {
   };
 
   mediaRecorder.start(1500);
-}
-
-async function captureTabAudio(streamId) {
-  try {
-    return await navigator.mediaDevices.getUserMedia({
-      audio: {
-        mandatory: {
-          chromeMediaSource: "tab",
-          chromeMediaSourceId: streamId
-        }
-      },
-      video: false
-    });
-  } catch (error) {
-    console.warn("navigator.mediaDevices.getUserMedia failed", error);
-    return new Promise((resolve, reject) => {
-      chrome.tabCapture.capture({ audio: true, video: false }, (stream) => {
-        if (chrome.runtime.lastError || !stream) {
-          reject(
-            new Error(
-              chrome.runtime.lastError?.message ||
-                "Sekme sesi alınamadı. İzin verdiğinden emin ol."
-            )
-          );
-          return;
-        }
-        resolve(stream);
-      });
-    });
-  }
 }
 
 async function stopPipeline() {

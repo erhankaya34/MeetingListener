@@ -19,17 +19,16 @@ async function ensureOffscreenDocument() {
   });
 }
 
-async function startCapture(tabId, backendUrl) {
+async function startCapture(tabId, backendUrl, streamId) {
   if (captureState.streamId) {
     return captureState;
   }
   await ensureOffscreenDocument();
   const meetingId = crypto.randomUUID();
-  const tabStreamId = await getStreamIdForTab(tabId);
-  captureState = { tabId, streamId: tabStreamId, backendUrl, meetingId };
+  captureState = { tabId, streamId, backendUrl, meetingId };
   await chrome.runtime.sendMessage({
     type: "meeting-capture-start",
-    streamId: tabStreamId,
+    streamId,
     backendUrl,
     meetingId
   });
@@ -56,7 +55,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === "start-meeting-capture") {
       try {
         const tabId = message.tabId ?? sender.tab?.id;
-        const state = await startCapture(tabId, message.backendUrl);
+        const state = await startCapture(tabId, message.backendUrl, message.streamId);
         sendResponse({ ok: true, state });
       } catch (error) {
         console.error("Start capture failed", error);
@@ -114,9 +113,11 @@ chrome.action.onClicked.addListener(async (tab) => {
     await stopCapture();
     return;
   }
-  await startCapture(tab.id, null);
+  const streamId = await getTabStreamId(tab.id);
+  await startCapture(tab.id, null, streamId);
 });
-async function getStreamIdForTab(tabId) {
+
+function getTabStreamId(tabId) {
   return new Promise((resolve, reject) => {
     chrome.tabCapture.getMediaStreamId(
       {

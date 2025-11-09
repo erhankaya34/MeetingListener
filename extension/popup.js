@@ -49,11 +49,19 @@ async function onToggleClick() {
       return;
     }
 
-      const response = await chrome.runtime.sendMessage({
-        type: "start-meeting-capture",
-        tabId: tab?.id,
-        backendUrl
-      });
+    let streamId;
+    try {
+      streamId = await getTabStreamId(tab.id);
+    } catch (err) {
+      setStatus(err?.message || "Ses izni verilmedi.", "error");
+      return;
+    }
+    const response = await chrome.runtime.sendMessage({
+      type: "start-meeting-capture",
+      tabId: tab?.id,
+      streamId,
+      backendUrl
+    });
       if (!response?.ok) {
         throw new Error(response?.error || "Dinleme başlatılamadı.");
       }
@@ -170,6 +178,28 @@ function renderAssignments(assignments) {
 function setStatus(text, tone = "idle") {
   statusEl.textContent = text;
   statusEl.dataset.tone = tone;
+}
+
+function getTabStreamId(tabId) {
+  return new Promise((resolve, reject) => {
+    chrome.tabCapture.getMediaStreamId(
+      {
+        targetTabId: tabId,
+        consumerTabId: tabId
+      },
+      (streamId) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (!streamId) {
+          reject(new Error("Sekme sesi için izin alınamadı."));
+          return;
+        }
+        resolve(streamId);
+      }
+    );
+  });
 }
 function normalizeBackendUrl(url) {
   if (!url) return DEFAULT_BACKEND_URL;
