@@ -48,9 +48,21 @@ async function startPipeline(streamId, backendUrl, meetingId) {
       video: false
     });
   } catch (error) {
-    throw new Error(
-      error?.message || error?.name || "Sekme sesi alınamadı. Lütfen yeniden izin ver."
-    );
+    console.warn("getUserMedia failed, falling back to tabCapture.capture", error);
+    stream = await new Promise((resolve, reject) => {
+      chrome.tabCapture.capture({ audio: true, video: false }, (captured) => {
+        if (chrome.runtime.lastError || !captured) {
+          reject(
+            new Error(
+              chrome.runtime.lastError?.message ||
+                "Sekme sesi alınamadı. Lütfen yeniden izin ver."
+            )
+          );
+          return;
+        }
+        resolve(captured);
+      });
+    });
   }
 
   backendStreamer = new BackendStreamer(backendUrl, currentMeetingId);
